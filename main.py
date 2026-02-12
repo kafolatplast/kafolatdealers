@@ -134,7 +134,7 @@ class ValidationError(Exception):
 
 # ==================== КОНФИГУРАЦИЯ ТАЙМЕРА WEBAPP ====================
 # Время активности кнопки "Сделать заказ" в секундах
-WEBAPP_BUTTON_TIMEOUT = int(os.getenv("WEBAPP_BUTTON_TIMEOUT", "86400"))
+WEBAPP_BUTTON_TIMEOUT = int(os.getenv("WEBAPP_BUTTON_TIMEOUT", "300"))
 
 
 # Словарь для хранения времени последнего /start для каждого пользователя
@@ -228,13 +228,13 @@ PRODUCTION_PLASTICPE_IDS = [int(x.strip()) for x in os.getenv("PRODUCTION_PLASTI
 PRODUCTION_PLASTICPET_IDS = [int(x.strip()) for x in os.getenv("PRODUCTION_PLASTICPET_IDS", "").split(",") if x.strip()]
 PRODUCTION_PLASTICPP_IDS = [int(x.strip()) for x in os.getenv("PRODUCTION_PLASTICPP_IDS", "").split(",") if x.strip()]
 PRODUCTION_PLASTICTD_IDS = [int(x.strip()) for x in os.getenv("PRODUCTION_PLASTICTD_IDS", "").split(",") if x.strip()]
-PRODUCTION_CHEMICALS_IDS = [int(x.strip()) for x in os.getenv("PRODUCTION_CHEMICALS_IDS", "").split(",") if x.strip()]
+PRODUCTION_CLEANING2_IDS = [int(x.strip()) for x in os.getenv("PRODUCTION_CLEANING2_IDS", "").split(",") if x.strip()]
 PRODUCTION_FRAGRANCES_IDS = [int(x.strip()) for x in os.getenv("PRODUCTION_FRAGRANCES_IDS", "").split(",") if x.strip()]
 
 # Объединенный список производственных админов (все цеха вместе)
 PRODUCTION_ADMIN_IDS = (PRODUCTION_CLEANING_IDS + PRODUCTION_PLASTICPE_IDS +
                         PRODUCTION_PLASTICPET_IDS + PRODUCTION_PLASTICPP_IDS +
-                        PRODUCTION_PLASTICTD_IDS + PRODUCTION_CHEMICALS_IDS +
+                        PRODUCTION_PLASTICTD_IDS + PRODUCTION_CLEANING2_IDS +
                         PRODUCTION_FRAGRANCES_IDS)
 
 WAREHOUSE_ADMIN_IDS = [int(x.strip()) for x in os.getenv("WAREHOUSE_ADMIN_IDS", "").split(",") if x.strip()]
@@ -249,7 +249,7 @@ CATEGORY_TO_PRODUCTION_IDS = {
     "plasticpet": PRODUCTION_PLASTICPET_IDS,
     "plasticpp": PRODUCTION_PLASTICPP_IDS,
     "plastictd": PRODUCTION_PLASTICTD_IDS,
-    "chemicals": PRODUCTION_CHEMICALS_IDS,
+    "cleaning2": PRODUCTION_CLEANING2_IDS,
     "fragrances": PRODUCTION_FRAGRANCES_IDS,
 }
 
@@ -260,8 +260,13 @@ CATEGORY_NAMES = {
     "plasticpet": "ПЭТ",
     "plasticpp": "ПП",
     "plastictd": "Распылители & Дозаторы",
-    "chemicals": "Химикаты",
+    "cleaning2": "Моющие средства 2",
     "fragrances": "Отдушки",
+    # Дополнительные варианты написания (на случай разных форматов в Google Sheets)
+    "Моющие средства": "Моющие средства",
+    "Моющие средства 2": "Моющие средства 2",
+    "Пластик": "Пластик",
+    "Отдушки": "Отдушки",
 }
 
 
@@ -320,7 +325,7 @@ def get_order_category(order_items: list) -> str:
     elif 50000 <= first_item_id < 60000:
         return "plastictd"
     elif 60000 <= first_item_id < 70000:
-        return "chemicals"
+        return "cleaning2"
     elif 70000 <= first_item_id < 80000:
         return "fragrances"
 
@@ -340,7 +345,7 @@ def get_category_by_item_id(item_id: int) -> str:
     elif 50000 <= item_id < 60000:
         return "plastictd"
     elif 60000 <= item_id < 70000:
-        return "chemicals"
+        return "cleaning2"
     elif 70000 <= item_id < 80000:
         return "fragrances"
     return None
@@ -348,13 +353,20 @@ def get_category_by_item_id(item_id: int) -> str:
 
 def group_items_by_category(order_items: list) -> dict:
     """Группирует товары по категориям
-
+    
+    Использует поле 'category' из Google Sheets
     Возвращает словарь: {category: [items]}
     """
     grouped = {}
     for item in order_items:
-        item_id = item.get("id", 0)
-        category = get_category_by_item_id(item_id)
+        # ✅ ИСПОЛЬЗУЕМ КАТЕГОРИЮ ИЗ GOOGLE SHEETS
+        category = item.get("category")
+        
+        if not category or category == "unknown":
+            # Fallback: пытаемся определить по ID (для старых заказов)
+            item_id = item.get("id", 0)
+            category = get_category_by_item_id(item_id)
+        
         if category:
             if category not in grouped:
                 grouped[category] = []
@@ -368,8 +380,20 @@ def get_production_ids_for_category(category: str) -> list:
 
 
 def get_category_name(category: str) -> str:
-    """Возвращает название категории"""
-    return CATEGORY_NAMES.get(category, "Неизвестная категория")
+    """Возвращает название категории
+    
+    Если категория в словаре CATEGORY_NAMES - возвращает русское название
+    Иначе - возвращает саму категорию (для гибкости с Google Sheets)
+    """
+    if not category:
+        return "Неизвестная категория"
+    
+    # Если есть в словаре - берем оттуда
+    if category in CATEGORY_NAMES:
+        return CATEGORY_NAMES[category]
+    
+    # Иначе возвращаем как есть (для новых категорий из Google Sheets)
+    return category.capitalize()
 
 
 # Эмодзи для категорий
@@ -379,8 +403,13 @@ CATEGORY_EMOJIS = {
     "plasticpet": "♻️",
     "plasticpp": "🟣",
     "plastictd": "💧",
-    "chemicals": "🧪",
+    "cleaning2": "🧪",
     "fragrances": "🌸",
+    # Дополнительные варианты
+    "Моющие средства": "🧴",
+    "Моющие средства 2": "🧪",
+    "Пластик": "🔵",
+    "Отдушки": "🌸",
 }
 
 
@@ -3476,14 +3505,20 @@ async def order_signature_handler(message: Message, state: FSMContext):
         # Группируем товары по категориям
         grouped_items = group_items_by_category(order_data["items"])
         num_categories = len(grouped_items)
-
+        
+        # ✅ ЛОГИРУЕМ КАТЕГОРИИ ДЛЯ ОТЛАДКИ
+        logger.info(f"📋 Order {base_order_id} categories detected:")
+        for cat, items in grouped_items.items():
+            logger.info(f"  - {cat} ({get_category_name(cat)}): {len(items)} items")
+        
         # Регистрируем заказ
         rate_limiter.register_order(message.from_user.id)
 
-        # Отправляем пользователю подтверждение (БЕЗ PDF - он уже получил при предпросмотре)
+        # ===== ОТПРАВЛЯЕМ КЛИЕНТУ ТОЛЬКО ТЕКСТОВОЕ ПОДТВЕРЖДЕНИЕ =====
+        # PDF клиент уже получил при предпросмотре, повторно не отправляем
         if lang == "ru":
             user_text = (
-                f"✅ Ваш заказ №{base_order_id} успешно подтвержден и отправлен!\n\n"
+                f"Ваш заказ №{base_order_id} отправлен!\n\n"
                 f"💰 Сумма: {format_currency(order_data['total'])}\n"
                 f"📦 Товаров: {len(order_data['items'])}\n"
                 f"🏭 Категорий: {num_categories}\n"
@@ -3493,13 +3528,13 @@ async def order_signature_handler(message: Message, state: FSMContext):
             )
         else:
             user_text = (
-                f"✅ Sizning buyurtmangiz №{base_order_id} muvaffaqiyatli tasdiqlandi va yuborildi!\n\n"
+                f"✅ Sizning №{base_order_id} raqamli buyurtmangiz  yuborildi!\n\n"
                 f"💰 Summa: {format_currency(order_data['total'])}\n"
                 f"📦 Mahsulotlar: {len(order_data['items'])}\n"
                 f"🏭 Kategoriyalar: {num_categories}\n"
                 f"✍️ Imzo: {final_name}\n\n"
                 f"📋 Savdo bo'limi tez orada buyurtmangizni ko'rib chiqadi.\n"
-                f"Buyurtma holati haqida sizga xabar beramiz."
+                f"Buyurtma holati haqida sizga xabar yuboriladi"
             )
 
         await message.answer(user_text)
