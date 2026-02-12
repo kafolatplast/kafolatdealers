@@ -3528,7 +3528,7 @@ async def order_signature_handler(message: Message, state: FSMContext):
             )
         else:
             user_text = (
-                f"✅ Sizning №{base_order_id} raqamli buyurtmangiz  yuborildi!\n\n"
+                f"Sizning №{base_order_id} raqamli buyurtmangiz  yuborildi!\n\n"
                 f"💰 Summa: {format_currency(order_data['total'])}\n"
                 f"📦 Mahsulotlar: {len(order_data['items'])}\n"
                 f"🏭 Kategoriyalar: {num_categories}\n"
