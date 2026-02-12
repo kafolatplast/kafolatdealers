@@ -134,7 +134,7 @@ class ValidationError(Exception):
 
 # ==================== КОНФИГУРАЦИЯ ТАЙМЕРА WEBAPP ====================
 # Время активности кнопки "Сделать заказ" в секундах
-WEBAPP_BUTTON_TIMEOUT = int(os.getenv("WEBAPP_BUTTON_TIMEOUT", "300"))
+WEBAPP_BUTTON_TIMEOUT = int(os.getenv("WEBAPP_BUTTON_TIMEOUT", "86400"))
 
 
 # Словарь для хранения времени последнего /start для каждого пользователя
